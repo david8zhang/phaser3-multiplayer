@@ -36,11 +36,11 @@ class PlayerState extends Schema implements IPlayerState {
 }
 
 export class LudoGameState extends Schema implements ILudoGameState {
-  @type('string')
-  mySynchronizedProperty: string = 'Hello world'
-
   @type([PlayerState])
   playerStates: PlayerState[]
+
+  @type('number')
+  lastDiceValue = 0
 
   constructor() {
     super()
