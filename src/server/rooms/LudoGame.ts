@@ -1,8 +1,8 @@
 import { Room, Client } from 'colyseus'
 import { LudoGameState } from './schema/LudoGameState'
 import { ClientMessage } from '../../types/ClientMessage'
-import { ServerMessage } from '../../types/ServerMessage'
 import randomInt from '../../shared/math/random'
+import { ServerMessage } from '../../types/ServerMessage'
 
 export class LudoGame extends Room<LudoGameState> {
   onCreate(options: any) {
@@ -17,6 +17,7 @@ export class LudoGame extends Room<LudoGameState> {
     this.onMessage(ClientMessage.DiceRoll, (client) => {
       const value = randomInt(1, 7)
       this.state.lastDiceValue = value
+      this.broadcast(ServerMessage.DiceRollResult, { value })
     })
   }
 

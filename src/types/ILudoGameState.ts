@@ -5,6 +5,8 @@ export interface IPieceState {
   y: number
 }
 
+export interface LastRollState {}
+
 export interface IPlayerState extends Schema {
   piecesInYard: IPieceState[]
   piecesOnBoard: IPieceState[]

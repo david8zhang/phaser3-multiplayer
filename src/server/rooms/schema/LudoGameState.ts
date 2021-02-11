@@ -42,6 +42,9 @@ export class LudoGameState extends Schema implements ILudoGameState {
   @type('number')
   lastDiceValue = 0
 
+  @type('number')
+  numRoll = 0
+
   constructor() {
     super()
     this.playerStates = new ArraySchema()

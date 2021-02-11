@@ -20,6 +20,12 @@ const dicePositions = [
   { x: 660, y: 40 },
 ]
 
+enum MessageEvents {
+  DiceRollResult = 'dice-roll-result',
+}
+
+const serverEvents = new Phaser.Events.EventEmitter()
+
 export default class Game extends Phaser.Scene {
   private client!: Colyseus.Client
   private stateMachine!: StateMachine
@@ -38,6 +44,9 @@ export default class Game extends Phaser.Scene {
     this.stateMachine = new StateMachine(this, 'game')
     this.stateMachine
       .addState('idle')
+      .addState('wait-for-dice-roll', {
+        onEnter: this.handleWaitForDiceRoll,
+      })
       .addState('dice-roll', {
         onEnter: this.handleDiceRollEnter,
         onUpdate: this.handleDiceRollUpdate,
@@ -71,6 +80,7 @@ export default class Game extends Phaser.Scene {
 
     this.room.onStateChange.once((state) => {
       this.handleInitialState(state, centerX, centerY)
+      this.stateMachine.setState('wait-for-dice-roll')
     })
 
     this.dice = this.add.sprite(
@@ -82,28 +92,49 @@ export default class Game extends Phaser.Scene {
     this.input.keyboard.on('keyup-SPACE', (evt) => {
       this.stateMachine.setState('dice-roll')
     })
+
+    this.room.state.onChange = (changes) => {
+      serverEvents.emit('onChange', changes)
+    }
+
+    this.room.onMessage('*', (type, message) => {
+      switch (type) {
+        case ServerMessage.DiceRollResult:
+          serverEvents.emit(MessageEvents.DiceRollResult, message)
+          return
+      }
+    })
   }
 
   update(t: number, dt: number) {
     this.stateMachine.update(dt)
   }
 
-  private handleDiceRollEnter() {
-    this.room.send(ClientMessage.DiceRoll)
-
-    const value = Phaser.Math.Between(1, 6)
-    this.dice.setTexture(`dice-image-${value}`)
-    this.room.state.onChange = (changes) => {
-      changes.forEach((change) => {
-        if (change.field !== 'lastDiceValue') {
-          return
-        }
-        this.room.state.onChange = undefined
-        this.time.delayedCall(500, () => {
+  private handleWaitForDiceRoll() {
+    serverEvents.once(
+      MessageEvents.DiceRollResult,
+      (message: { value: number }) => {
+        this.room.state.lastDiceValue = message.value
+        this.time.delayedCall(1000, () => {
           this.stateMachine.setState('dice-roll-finish')
         })
-      })
-    }
+      }
+    )
+  }
+
+  private handleDiceRollEnter() {
+    const value = Phaser.Math.Between(1, 6)
+    this.dice.setTexture(`dice-image-${value}`)
+    serverEvents.once(
+      MessageEvents.DiceRollResult,
+      (message: { value: number }) => {
+        this.room.state.lastDiceValue = message.value
+        this.time.delayedCall(1000, () => {
+          this.stateMachine.setState('dice-roll-finish')
+        })
+      }
+    )
+    this.room.send(ClientMessage.DiceRoll)
   }
 
   private handleDiceRollUpdate(dt: number) {
@@ -117,6 +148,7 @@ export default class Game extends Phaser.Scene {
 
   private handleDiceRollFinishEnter() {
     this.dice.setTexture(`dice-image-${this.room.state.lastDiceValue}`)
+    this.stateMachine.setState('wait-for-dice-roll')
   }
 
   private handleInitialState(
